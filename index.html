@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NutriLess Sistema de Gestión Nutricional</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -66,6 +67,8 @@
         .btn-secondary { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color:#fff; }
         .btn-success { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color:#fff; }
         .btn-whatsapp { background: linear-gradient(135deg, #25d366 0%, #128c7e 100%); color:#fff; }
+.btn-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color:#fff; }
+.btn-info { background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%); color:#fff; }
 
         /* ===== Lista de pacientes colapsable ===== */
         .accordion-toggle {
@@ -146,6 +149,9 @@
 
         /* Print */
         @media print {
+            .avoid-break { break-inside: avoid-page !important; page-break-inside: avoid !important; }
+            .chart-container, .results-table, .analysis-panel-card, .body-visual-card { break-inside: avoid-page !important; page-break-inside: avoid !important; }
+
             @page { size: A4; margin: 1.2cm; }
             html, body { background: #fff !important; color:#000 !important; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
@@ -168,6 +174,13 @@
             .header-text { text-align: center; }
             .brand-logo { margin: 8px auto 0; max-height: 72px; }
         }
+
+    
+        /* ===== PDF page-break helpers ===== */
+        .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; -webkit-column-break-inside: avoid !important; }
+        .pdf-pagebreak-before { page-break-before: always !important; break-before: page !important; }
+        /* Ensure canvases render as blocks and stay together */
+        canvas { display: block; }
 
     </style>
 </head>
@@ -205,7 +218,9 @@
                     <button class="btn btn-primary" id="btn-new">🆕 Nuevo Paciente</button>
                     <button class="btn btn-secondary" id="btn-export">⬇️ Exportar Datos</button>
                     <button class="btn btn-success" id="btn-import">⬆️ Importar Datos</button>
-                    <input type="file" id="import-file" style="display:none" accept=".json">
+                    <button class="btn btn-info" id="btn-pdf">📥 Descargar PDF</button>
+<button class="btn btn-danger" id="btn-delete">🗑️ Eliminar Paciente</button>
+<input type="file" id="import-file" style="display:none" accept=".json">
                 </div>
             </div>
 
@@ -520,7 +535,7 @@
                 <p style="color:#333; font-weight:700; margin-top:6px;">Nutrióloga responsable: <span style="color:#06b6d4;">Nutri Less</span></p>
             </div>
 
-            <div class="report-section">
+            <div class="report-section avoid-break">
                 <h3>👤 Información del Paciente</h3>
                 <table class="results-table">
                     <tr><th>Campo</th><th>Valor</th></tr>
@@ -533,7 +548,7 @@
                 </table>
             </div>
 
-            <div class="report-section">
+            <div class="report-section avoid-break">
                 <h3>📏 Medidas Antropométricas</h3>
                 <table class="results-table">
                     <tr><th>Parámetro</th><th>Valor</th><th>Estado</th></tr>
@@ -548,7 +563,7 @@
                 </table>
             </div>
 
-            <div class="report-section">
+            <div class="report-section avoid-break">
                 <h3>⚡ Análisis de Bioimpedancia</h3>
                 <table class="results-table">
                     <tr><th>Parámetro</th><th>Valor</th><th>Estado</th></tr>
@@ -561,18 +576,18 @@
                 </table>
             </div>
 
-            <div class="charts-container">
-                <div class="chart-container">
+            <div class="charts-container avoid-break">
+                <div class="chart-container avoid-break">
                     <h4>📊 Composición Corporal</h4>
                     <canvas id="bodyCompositionChart"></canvas>
                 </div>
-                <div class="chart-container">
+                <div class="chart-container avoid-break">
                     <h4>📈 Indicadores Principales</h4>
                     <canvas id="mainIndicatorsChart"></canvas>
                 </div>
             </div>
 
-            <div class="report-section">
+            <div class="report-section avoid-break">
                 <h3>🧍 Cuerpo Humano Visual</h3>
                 <div class="body-visual-wrap">
                     <div class="body-visual-card">
@@ -587,7 +602,7 @@
                 </div>
             </div>
 
-            <div class="report-section">
+            <div class="report-section avoid-break">
                 <h3>💡 Recomendaciones</h3>
                 <div style="background: rgba(102,126,234,.1); padding: 18px; border-radius: 12px; margin: 12px 0;">
                     ${generateRecommendations(patient)}
@@ -595,7 +610,7 @@
             </div>
 
             ${patient.observations ? `
-            <div class="report-section">
+            <div class="report-section avoid-break">
                 <h3>📝 Observaciones</h3>
                 <p style="font-style: italic; background: rgba(255,255,255,.88); padding: 12px; border-radius:8px;">${patient.observations}</p>
             </div>` : ''}
@@ -893,5 +908,109 @@
         alert('¡WhatsApp abierto! El mensaje está listo para enviar.');
     }
 </script>
+<script>
+
+document.addEventListener('DOMContentLoaded', () => {
+  const pdfBtn = document.getElementById('btn-pdf');
+  if (pdfBtn && !pdfBtn.dataset.bound) {
+    pdfBtn.addEventListener('click', downloadPDF);
+    pdfBtn.dataset.bound = '1';
+  }
+  const delBtn = document.getElementById('btn-delete');
+  if (delBtn && !delBtn.dataset.bound) {
+    delBtn.addEventListener('click', deleteCurrentPatient);
+    delBtn.dataset.bound = '1';
+  }
+});
+
+</script>
+
+<script>
+// === Eliminar paciente seleccionado ===
+function deleteCurrentPatient(){
+  try{
+    if (typeof currentPatient === 'undefined' || currentPatient === null) {
+      alert('Selecciona un paciente para eliminar.');
+      return;
+    }
+    if (!Array.isArray(patients)) { alert('No hay pacientes cargados.'); return; }
+    const name = (patients[currentPatient] && patients[currentPatient].name) ? patients[currentPatient].name : 'sin nombre';
+    if (!confirm(`¿Eliminar al paciente "${name}"? Esta acción no se puede deshacer.`)) return;
+    patients.splice(currentPatient, 1);
+    if (typeof savePatients === 'function') savePatients();
+    if (typeof updatePatientList === 'function') updatePatientList();
+    if (typeof showPatientList === 'function') showPatientList();
+    currentPatient = null;
+    alert('Paciente eliminado.');
+  }catch(e){
+    console.error(e);
+    alert('Ocurrió un error al eliminar al paciente.');
+  }
+}
+
+// === Descargar PDF profesional (incluye gráficas) ===
+function downloadPDF(){
+  try{
+    if (typeof currentPatient === 'undefined' || currentPatient === null) {
+      alert('Debe seleccionar o guardar un paciente primero.');
+      return;
+    }
+    const reportView = document.getElementById('report-view');
+    const isVisible = reportView && getComputedStyle(reportView).display !== 'none';
+    if (!isVisible) {
+      if (typeof generateReport === 'function') generateReport();
+      // Dar tiempo a que Chart.js renderice los canvas
+      setTimeout(exportPDFNow, 600);
+    } else {
+      exportPDFNow();
+    }
+  }catch(e){
+    console.error(e);
+    alert('No se pudo preparar el reporte para PDF.');
+  }
+}
+
+function exportPDFNow(){
+  const element = document.getElementById('report-content') || document.getElementById('report-view') || document.body;
+  if (!element) { alert('No se encontró el contenido del reporte.'); return; }
+
+  // Nombre del archivo
+  let filename = 'Reporte_NutriLess.pdf';
+  try{
+    const p = (Array.isArray(patients) && typeof currentPatient === 'number') ? patients[currentPatient] : null;
+    if (p && p.name) {
+      filename = `Reporte_${p.name.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+    }
+  }catch(_){}
+
+  const opt = {
+    margin: [10, 10, 12, 14],
+    filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, background: '#ffffff', logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['css', 'legacy'], avoid: ['.avoid-break'], before: ['.pdf-pagebreak-before'] }
+  };
+
+  element.classList.add('pdf-exporting');
+  html2pdf().set(opt).from(element).toPdf().get('pdf').then(function (pdf) {
+    const total = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(10);
+      pdf.setTextColor(100);
+      const w = pdf.internal.pageSize.getWidth();
+      const h = pdf.internal.pageSize.getHeight();
+      pdf.text('NutriLess — Lesly Sanz', 10, h - 8);
+      pdf.text(`Página ${i} de ${total}`, w - 30, h - 8);
+    }
+  }).save().then(() => {
+    element.classList.remove('pdf-exporting');
+  }).catch(() => {
+    element.classList.remove('pdf-exporting');
+  });
+}
+</script>
+
 </body>
 </html>
